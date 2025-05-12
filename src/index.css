@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+body{
+ 
+  background-color:#0a1324 ;
+  color:#061431;
+  background-image: url('https://images.unsplash.com/photo-1526045612212-70caf35c14df');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  
+}
