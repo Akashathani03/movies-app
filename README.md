@@ -1,6 +1,6 @@
-# Akash's Movie Hub
+# Movie Hub
 
-Akash's Movie Hub is a movie discovery web app built with React and Vite. It shows popular movies from [The Movie Database (TMDB)](https://www.themoviedb.org/) and lets you search TMDB's catalogue of films in every language, displaying the results as poster cards. Completed searches are counted in an [Appwrite](https://appwrite.io/) database.
+Movie Hub is a movie discovery web app built with React and Vite. It shows popular movies from [The Movie Database (TMDB)](https://www.themoviedb.org/) and lets you search TMDB's catalogue of films in every language, displaying the results as poster cards. Completed searches are counted in an [Appwrite](https://appwrite.io/) database.
 
 ## Features
 
