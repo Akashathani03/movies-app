@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 750" role="img" aria-label="No poster available">
+  <rect width="500" height="750" fill="#e5e7eb"/>
+  <g fill="none" stroke="#9ca3af" stroke-width="12" stroke-linejoin="round">
+    <rect x="160" y="270" width="180" height="140" rx="12"/>
+    <path d="M160 310h180M160 370h180M205 270v40M250 270v40M295 270v40M205 370v40M250 370v40M295 370v40"/>
+  </g>
+  <text x="250" y="470" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="30" fill="#6b7280">No poster available</text>
+</svg>

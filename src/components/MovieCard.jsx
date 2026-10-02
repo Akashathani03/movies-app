@@ -1,13 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const MovieCard = ({ movie }) => {
   // TMDB image base URL
   const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"; // w500 is a good balance of size/quality
+  const FALLBACK_POSTER = '/no-poster.svg'; // Local asset in public/
+
+  // Set once the TMDB poster fails to load; drives both the image and its alt text
+  const [posterFailed, setPosterFailed] = useState(false);
+  const showingFallback = !movie.poster_path || posterFailed;
 
   // Get the full poster URL with fallbacks
   const getPosterUrl = () => {
-    if (!movie.poster_path) {
-      return 'https://via.placeholder.com/500x750.png?text=No+Poster';
+    if (showingFallback) {
+      return FALLBACK_POSTER;
     }
     return `${IMAGE_BASE_URL}${movie.poster_path}`;
   };
@@ -18,12 +23,14 @@ const MovieCard = ({ movie }) => {
       <div className="relative pb-[150%]"> {/* Maintains 2:3 aspect ratio */}
         <img
           src={getPosterUrl()}
-          alt={`${movie.title} movie poster`}
+          alt={showingFallback ? `No poster available for ${movie.title}` : `${movie.title} movie poster`}
           className="absolute top-0 left-0 w-full h-full object-cover"
           loading="lazy"
-          onError={(e) => {
-            e.target.onerror = null; // Prevent infinite loop
-            e.target.src = 'https://via.placeholder.com/500x750.png?text=Poster+Error';
+          onError={() => {
+            // Swap in the fallback once; if the fallback itself fails, stop (prevents a loop)
+            if (!showingFallback) {
+              setPosterFailed(true);
+            }
           }}
         />
       </div>

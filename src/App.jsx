@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Search from './components/Search';
 import MovieCard from './components/MovieCard';
 import Spinner from './components/Spinner';
@@ -16,36 +16,45 @@ const API_OPTIONS = {
   },
 };
 
+const NO_RESULTS_MESSAGE = 'No movies found for your search';
+
 const App = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [popularMovies, setPopularMovies] = useState([]);
-  const [errorMessage, setErrorMessage] = useState('');
+  // Separate error states so a search never clears or overwrites a popular-movies error (and vice versa)
+  const [popularMoviesError, setPopularMoviesError] = useState('');
+  const [searchError, setSearchError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingPopular, setIsLoadingPopular] = useState(true);
+  const lastTrackedTermRef = useRef('');
+  const [settledSearchTerm, setSettledSearchTerm] = useState('');
+  const [completedSearch, setCompletedSearch] = useState(null);
 
   useDebounce(() => {
     setDebouncedSearchTerm(searchTerm);
   }, 500, [searchTerm]);
+
+  // Longer pause before a search counts as finished, so mid-typing pauses aren't tracked
+  useDebounce(() => {
+    setSettledSearchTerm(searchTerm);
+  }, 1500, [searchTerm]);
 
   // Fetch popular movies on initial load
   useEffect(() => {
     const fetchPopularMovies = async () => {
       try {
         const response = await fetch(
-          `${API_BASE_URL}/movie/popular?language=kn-IN&page=1&region=IN`,
+          `${API_BASE_URL}/movie/popular?language=en-US&page=1&region=IN`,
           API_OPTIONS
         );
         if (!response.ok) throw new Error('Failed to fetch popular movies');
         const data = await response.json();
         setPopularMovies(data.results || []);
-
-        updateSearchCount()
-        
       } catch (error) {
         console.error('Error fetching popular movies:', error);
-        setErrorMessage('Failed to load popular movies');
+        setPopularMoviesError('Failed to load popular movies');
       } finally {
         setIsLoadingPopular(false);
       }
@@ -56,68 +65,98 @@ const App = () => {
 
   // Fetch search results when debounced term changes
   useEffect(() => {
+    let ignore = false;
+
     const fetchSearchResults = async () => {
       if (!debouncedSearchTerm.trim()) {
         setSearchResults([]);
-        setErrorMessage('');
+        setSearchError('');
+        // An in-flight search for the previous term won't clear loading once it is stale
+        setIsLoading(false);
         return;
       }
 
       setIsLoading(true);
-      setErrorMessage('');
+      setSearchError('');
 
       try {
         const response = await fetch(
-          `${API_BASE_URL}/search/movie?query=${encodeURIComponent(debouncedSearchTerm)}&language=kn-IN&page=1&region=IN`,
+          `${API_BASE_URL}/search/movie?query=${encodeURIComponent(debouncedSearchTerm)}&language=en-US&page=1&region=IN`,
           API_OPTIONS
         );
         if (!response.ok) throw new Error('Search failed');
         const data = await response.json();
-        setSearchResults(data.results || []);
-        if (data.results.length === 0) {
-          setErrorMessage('No movies found for your search');
+        // A newer search has started; this response is stale, so leave the UI alone
+        if (ignore) return;
+
+        // Tolerate an unexpected response shape (e.g. a 200 without a "results" array)
+        const results = Array.isArray(data?.results) ? data.results : [];
+        setSearchResults(results);
+        if (results.length === 0) {
+          setSearchError(NO_RESULTS_MESSAGE);
+        } else if (!ignore) {
+          // Remember the latest successful search; it is tracked once the term settles
+          setCompletedSearch({ term: debouncedSearchTerm, results });
         }
       } catch (error) {
+        if (ignore) return;
         console.error('Search error:', error);
-        setErrorMessage('Error during search');
+        setSearchError('Error during search');
         setSearchResults([]);
       } finally {
-        setIsLoading(false);
+        // Only the current search may end the loading state
+        if (!ignore) setIsLoading(false);
       }
     };
 
     fetchSearchResults();
+
+    return () => {
+      ignore = true;
+    };
   }, [debouncedSearchTerm]);
+
+  // Track a search once the term has settled, is still current, and its results have arrived
+  useEffect(() => {
+    if (
+      !completedSearch ||
+      settledSearchTerm !== searchTerm ||
+      completedSearch.term !== settledSearchTerm
+    ) {
+      return;
+    }
+
+    // Only once per term
+    const trackedTerm = settledSearchTerm.trim();
+    if (!trackedTerm || lastTrackedTermRef.current === trackedTerm) return;
+
+    lastTrackedTermRef.current = trackedTerm;
+    // Top result that has a poster (poster_url is required in Appwrite)
+    updateSearchCount(trackedTerm, completedSearch.results.find((movie) => movie.poster_path));
+  }, [searchTerm, settledSearchTerm, completedSearch]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 to-purple-200">
-      <header
-        className="p-6 bg-black bg-opacity-50 shadow-md text-white"
-        style={{
-          backgroundImage: `url('https://images.unsplash.com/photo-1503264116251-35a269479413?auto=format&fit=crop&w=1950&q=80')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        <h1 className="text-3xl md:text-5xl font-bold text-center mb-4">
-          Welcome to{' '}
-          <span className="bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
-            Akash's
-          </span>{' '}
-          Kannada Movie Hub
-        </h1>
+      {/* isolate keeps the layer z-indexes inside the header, below the sticky search bar */}
+      <header className="relative isolate overflow-hidden shadow-md text-white">
+        {/* Layer 1: banner image */}
         <img
-          src="/heros.webp"
-          alt="Kannada cinema banner"
-          className="mx-auto my-4 rounded-lg shadow-xl"
-          style={{
-            maxWidth: '1000px',
-            width: '100%',
-            height: 'auto',
-            maxHeight: '400px',
-            objectFit: 'cover',
-          }}
+          src="/hero-banner.svg"
+          alt="Illustrated cinema banner with a film reel, clapperboard, popcorn, tickets, film strips and movie genre icons"
+          className="absolute inset-0 z-0 h-full w-full object-cover"
         />
+        {/* Layer 2: 50% black overlay; never intercepts clicks */}
+        <div className="absolute inset-0 z-10 bg-black/50 pointer-events-none" aria-hidden="true" />
+        {/* Layer 3: content */}
+        <div className="relative z-20 flex min-h-[260px] md:min-h-[400px] items-center justify-center p-6">
+          <h1 className="text-3xl md:text-5xl font-bold text-center">
+            Welcome to{' '}
+            <span className="bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
+              Akash's
+            </span>{' '}
+            Movie Hub
+          </h1>
+        </div>
       </header>
 
       <Search searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
@@ -128,8 +167,14 @@ const App = () => {
           <div className="flex justify-center my-12">
             <Spinner />
           </div>
-        ) : errorMessage ? (
-          <p className="text-red-500 text-center my-8 text-xl">{errorMessage}</p>
+        ) : searchError ? (
+          // Errors are announced as alerts; "no results" is an ordinary outcome, announced politely
+          <p
+            role={searchError === NO_RESULTS_MESSAGE ? 'status' : 'alert'}
+            className="text-red-700 text-center my-8 text-xl"
+          >
+            {searchError}
+          </p>
         ) : searchResults.length > 0 ? (
           <>
             <h2 className="text-2xl font-bold mb-6 text-center">
@@ -146,8 +191,13 @@ const App = () => {
         {/* Popular Movies */}
         {!isLoading && searchResults.length === 0 && !isLoadingPopular && (
           <>
+            {popularMoviesError && (
+              <p role="alert" className="text-red-700 text-center my-8 text-xl">
+                {popularMoviesError}
+              </p>
+            )}
             <h2 className="text-2xl font-bold mb-6 text-center">
-              Popular Kannada Movies
+              Popular Movies
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {popularMovies.map((movie) => (

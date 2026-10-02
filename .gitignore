@@ -1,3 +1,4 @@
+# Logs
 logs
 *.log
 npm-debug.log*
@@ -10,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# Environment files (secrets); only the placeholder template is committed
+.env
+.env.*
+!.env.example
 
 # Editor directories and files
 .vscode/*
